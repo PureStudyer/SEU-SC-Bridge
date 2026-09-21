@@ -2,6 +2,7 @@
 
 package gui
 
-// Wails native file dialogs reference UTType on current macOS SDKs.
 // #cgo LDFLAGS: -framework UniformTypeIdentifiers
 import "C"
+
+// Current Wails native file dialogs reference UTType from this framework.

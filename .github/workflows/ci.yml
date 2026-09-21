@@ -25,6 +25,7 @@ jobs:
   windows:
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
     steps:
@@ -47,6 +48,7 @@ jobs:
             dist/windows-${{ matrix.arch }}/
   macos:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-15-intel
