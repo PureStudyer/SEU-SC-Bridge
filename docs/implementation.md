@@ -14,7 +14,7 @@ Checks completed:
 - Windows amd64/arm64 desktop executables and both NSIS installers generated.
 - Darwin amd64/arm64 CLI cross-compilation passes.
 
-Not yet verified: Windows ARM64 native execution, macOS GUI/Keychain/LaunchAgent/DMG on actual macOS, machine reboot, full terminal application matrix, public signing/notarization. Local race tests require a C compiler (not available); CI has race testing configured. Check Actions for current cross-platform CI results. Publishing is tracked in the repository history and Releases.
+Not yet verified: Windows ARM64 native execution, macOS GUI/Keychain/LaunchAgent/DMG on actual macOS, machine reboot, full terminal application matrix, public signing/notarization. Local race tests require a C compiler (not available); CI race tests passed on Windows, Linux and macOS. Check Actions for current cross-platform CI results. Publishing is tracked in the repository history and Releases.
 
 Current platform differs from the supplied spec: input must be JSON {type:input,data:...}; binary terminal output and JSON resize remain. The default uses JSON input, with binary mode retained. See README for exec/PTY and UTF-8 limits.
 
@@ -23,3 +23,5 @@ The supplied account password was used through process stdin and memory only; it
 Branding: repository and distributed application renamed SEU SC Bridge; native multi-resolution ICO/ICNS, executable resource ID 3, installer icons and tray artwork integrated. The seusc command, SSH alias, IPC/state directory identifiers are retained for compatibility.
 
 File transfer: added a standard SFTP subsystem backed by authenticated SEU Finder HTTP APIs. Real OpenSSH scp upload, overwrite and download passed SHA-256 comparison; a native SFTP batch roundtrip passed for >10 MB binary, empty and Chinese/space-named JSON files. Automated regressions cover multipart intermediate acknowledgements, merge, API business errors, authentication retry, open/truncate semantics and cancellation without publishing partial data.
+
+Release build evidence: GitHub Actions run 35622329502 passed all seven jobs for source commit ace9e1b5d4ef505a781da0fb6384051ce9f3b204, including both Windows installers and both macOS DMGs. Desktop macOS runtime and public signing/notarization remain unverified.

@@ -37,7 +37,8 @@ SEU SC Bridge 是一个非官方的 SEU 超算桌面客户端，将平台 WebShe
 | --- | --- | --- |
 | Windows 10/11 · Intel / AMD | [SEU-SC-Bridge-Setup-x64.exe](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.0/SEU-SC-Bridge-Setup-x64.exe) | 已完成真实账号端到端测试 |
 | Windows 11 · ARM64 | [SEU-SC-Bridge-Setup-arm64.exe](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.0/SEU-SC-Bridge-Setup-arm64.exe) | 已交叉构建，待 ARM64 实机验证 |
-| macOS · Intel / Apple Silicon | 原生构建脚本与 CI 提供 app / DMG 构建 | 待实机验证；构建产物见 Actions |
+| macOS · Intel | [SEU-SC-Bridge-amd64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.0/SEU-SC-Bridge-amd64.dmg) | CI 构建通过；实验版，未实机验收/公证 |
+| macOS · Apple Silicon | [SEU-SC-Bridge-arm64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.0/SEU-SC-Bridge-arm64.dmg) | CI 构建通过；实验版，未实机验收/公证 |
 
 > **v1.0.0 为公开预览版。** Windows 安装包尚未代码签名；macOS 尚未完成 Developer ID 签名、公证和实机验收。请从此仓库的 Release 下载，并对照 SHA256SUMS.txt 校验文件。
 
