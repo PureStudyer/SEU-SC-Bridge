@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "username": "",
+  "remember_password": false,
+  "ssh": {
+    "listen": "127.0.0.1",
+    "port": 24822,
+    "alias": "seusc"
+  },
+  "seu": {
+    "base_url": "https://sc.seu.edu.cn",
+    "input_mode": "json",
+    "default_node": "login01"
+  },
+  "nodes": {
+    "login01": 6
+  },
+  "agent": {
+    "autostart": true
+  },
+  "logging": {
+    "level": "info"
+  },
+  "browser": {
+    "username_selector": "#form_item_username",
+    "password_selector": "#form_item_password",
+    "submit_selector": "button.ant-btn-primary"
+  }
+}

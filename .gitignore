@@ -1,0 +1,12 @@
+/build/bin/
+/dist/
+/.tools/
+/coverage.out
+*.test
+*.exe
+*.dmg
+.DS_Store
+/.local-test/
+/%SystemDrive%/
+
+/cmd/seusc/rsrc_*.syso

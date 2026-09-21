@@ -1,0 +1,65 @@
+name: Test and build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race ./... -timeout 120s
+        env:
+          CGO_ENABLED: '1'
+      - run: go vet ./...
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - shell: pwsh
+        run: ./scripts/build.ps1 -Arch ${{ matrix.arch }}
+      - shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /DARCH=${{ matrix.arch }} packaging/windows/installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SEU-SC-Bridge-windows-${{ matrix.arch }}
+          path: |
+            dist/SEU-SC-Bridge-Setup-*.exe
+            dist/windows-${{ matrix.arch }}/
+  macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-15-intel
+            arch: amd64
+          - os: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: bash scripts/build-macos.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SEU-SC-Bridge-macos-${{ matrix.arch }}
+          path: dist/SEU-SC-Bridge-*.dmg
