@@ -120,4 +120,4 @@ jobs:
           version="${RELEASE_TAG#v}"
           printf '# SEU SC Bridge v%s\n\nWindows installers and macOS DMGs. These artifacts are currently unsigned; verify SHA256SUMS.txt before installing.\n\nSee SHA256SUMS.txt for artifact checksums.\n' "$version" > RELEASE_NOTES.md
           mapfile -t assets < <(find dist/release -type f | sort)
-          gh release create "$RELEASE_TAG" "${assets[@]}" --title "SEU SC Bridge v$version" --notes-file RELEASE_NOTES.md
+          gh release create "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "SEU SC Bridge v$version" --notes-file RELEASE_NOTES.md
