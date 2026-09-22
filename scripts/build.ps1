@@ -1,4 +1,4 @@
-param([ValidateSet('amd64','arm64')][string]$Arch='amd64',[string]$Version='1.0.0',[switch]$CLI)
+param([ValidateSet('amd64','arm64')][string]$Arch='amd64',[string]$Version='1.0.1',[switch]$CLI)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 Push-Location $root
@@ -11,6 +11,12 @@ try {
  $tags='desktop,production'; if($CLI){$tags=''}
  & go build -trimpath -tags $tags -ldflags "-s -w -X github.com/PureStudyer/SEU-SC-Bridge/internal/agent.Version=$Version" -o "$out/seusc.exe" ./cmd/seusc
  if($LASTEXITCODE -ne 0){throw 'Go build failed'}
+ if($env:WINDOWS_SIGNING_CERTIFICATE_BASE64){
+  & "$root/scripts/sign-windows.ps1" -Path "$out/seusc.exe"
+  if($LASTEXITCODE -ne 0){throw 'Windows executable signing failed'}
+ } else {
+  Write-Warning 'WINDOWS_SIGNING_CERTIFICATE_BASE64 is not set; output is unsigned.'
+ }
  Copy-Item -LiteralPath README.md -Destination $out
  Write-Host "Built $out/seusc.exe"
 } finally {Pop-Location}

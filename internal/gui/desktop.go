@@ -9,7 +9,6 @@ import (
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/agent"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/ipc"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/platform"
-	"github.com/energye/systray"
 	"github.com/gofrs/flock"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -17,7 +16,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"path/filepath"
-	goruntime "runtime"
 	"sync"
 	"time"
 )
@@ -80,7 +78,7 @@ func (a *App) CopyCommand() error {
 	return runtime.ClipboardSetText(a.ctx, "ssh "+st.Alias)
 }
 func Run(p platform.Paths) error     { return run(p, false) }
-func RunTray(p platform.Paths) error { return run(p, true) }
+func RunTray(p platform.Paths) error { return runTray(p) }
 func run(p platform.Paths, hidden bool) error {
 	platform.PrepareGUI()
 	lock := flock.New(filepath.Join(p.DataDir, "gui.lock"))
@@ -122,26 +120,8 @@ func run(p platform.Paths, hidden bool) error {
 		}
 		return ipc.Reply(nil, nil)
 	})
-	start, end := systray.RunWithExternalLoop(func() {
-		systray.SetIcon(trayIcon())
-		systray.SetTitle("SEU SC Bridge")
-		systray.SetTooltip("SEU SC Bridge · 本地 SSH")
-		open := systray.AddMenuItem("打开 SEU SC Bridge", "打开主窗口")
-		open.Click(func() { <-a.ready; runtime.WindowShow(a.ctx); runtime.WindowUnminimise(a.ctx) })
-		copy := systray.AddMenuItem("复制 SSH 命令", "复制 ssh seusc")
-		copy.Click(func() { <-a.ready; _ = a.CopyCommand() })
-		restart := systray.AddMenuItem("重启代理", "重新启动后台进程")
-		restart.Click(func() { go func() { <-a.ready; _ = a.Restart() }() })
-		systray.AddSeparator()
-		quit := systray.AddMenuItem("退出 SEU SC Bridge", "停止后台代理并退出")
-		quit.Click(func() { go func() { <-a.ready; _ = a.Stop(); runtime.Quit(a.ctx) }() })
-	}, func() {})
+	start, end := configureTray(a)
+	startTrayBeforeRun(start)
 	defer end()
-	return wails.Run(&options.App{Title: "SEU SC Bridge", Width: 1020, Height: 740, MinWidth: 800, MinHeight: 620, StartHidden: hidden, HideWindowOnClose: true, BackgroundColour: &options.RGBA{R: 14, G: 20, B: 30, A: 255}, AssetServer: &assetserver.Options{Assets: frontend.Assets}, OnStartup: func(c context.Context) { a.startup(c); start() }, OnShutdown: func(context.Context) { cancel() }, Bind: []interface{}{a}})
-}
-func trayIcon() []byte {
-	if goruntime.GOOS == "windows" {
-		return frontend.IconICO
-	}
-	return frontend.TrayPNG
+	return wails.Run(&options.App{Title: "SEU SC Bridge", Width: 1020, Height: 740, MinWidth: 800, MinHeight: 620, StartHidden: hidden, HideWindowOnClose: true, BackgroundColour: &options.RGBA{R: 14, G: 20, B: 30, A: 255}, AssetServer: &assetserver.Options{Assets: frontend.Assets}, OnStartup: func(c context.Context) { a.startup(c); startTrayAfterRun(start) }, OnShutdown: func(context.Context) { cancel() }, Bind: []interface{}{a}})
 }

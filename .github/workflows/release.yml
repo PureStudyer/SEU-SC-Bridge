@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v1.0.1
+        required: true
+        default: v1.0.1
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build executable
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v',''
+          ./scripts/build.ps1 -Arch ${{ matrix.arch }} -Version $version
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          $version = $env:RELEASE_TAG -replace '^v',''
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/DARCH=${{ matrix.arch }}" "/DVERSION=$version" packaging/windows/installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS failed' }
+      - name: Verify unsigned artifacts
+        shell: pwsh
+        run: |
+          $label = if ('${{ matrix.arch }}' -eq 'amd64') { 'x64' } else { 'arm64' }
+          foreach ($path in @("dist/windows-${{ matrix.arch }}/seusc.exe", "dist/SEU-SC-Bridge-Setup-$label.exe")) {
+            if (-not (Test-Path $path)) { throw "Windows artifact was not created: $path" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-${{ matrix.arch }}
+          path: |
+            dist/SEU-SC-Bridge-Setup-*.exe
+            dist/windows-${{ matrix.arch }}/seusc.exe
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            arch: amd64
+          - os: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build unsigned DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          VERSION="$version" bash scripts/build-macos.sh "${{ matrix.arch }}"
+      - name: Verify unsigned DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "dist/macos-${{ matrix.arch }}/SEU SC Bridge.app"
+          test -f "dist/SEU-SC-Bridge-${{ matrix.arch }}.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: dist/SEU-SC-Bridge-*.dmg
+
+  release:
+    name: Publish GitHub release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          merge-multiple: true
+      - name: Create checksums and build info
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          cd dist/release
+          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          printf 'version=%s\ncommit=%s\nworkflow=%s\n' "$version" "$GITHUB_SHA" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > BUILDINFO.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          printf '# SEU SC Bridge v%s\n\nWindows installers and macOS DMGs. These artifacts are currently unsigned; verify SHA256SUMS.txt before installing.\n\nSee SHA256SUMS.txt for artifact checksums.\n' "$version" > RELEASE_NOTES.md
+          gh release create "$RELEASE_TAG" dist/release/* --title "SEU SC Bridge v$version" --notes-file RELEASE_NOTES.md
