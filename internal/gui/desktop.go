@@ -4,11 +4,14 @@ package gui
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/PureStudyer/SEU-SC-Bridge/frontend"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/agent"
+	"github.com/PureStudyer/SEU-SC-Bridge/internal/config"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/ipc"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/platform"
+	"github.com/PureStudyer/SEU-SC-Bridge/internal/update"
 	"github.com/gofrs/flock"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -33,7 +36,29 @@ func (a *App) Status() (agent.Status, error) {
 	defer c()
 	var st agent.Status
 	e := ipc.Call(ctx, a.paths, ipc.Request{Op: "status"}, &st)
-	return st, e
+	if e == nil {
+		return st, nil
+	}
+	cfg, configErr := config.Load(a.paths.ConfigDir)
+	if configErr != nil {
+		return st, e
+	}
+	return agent.Status{
+		Version: agent.Version, State: "STOPPED", Account: cfg.Username,
+		Node: cfg.SEU.DefaultNode, Nodes: cfg.Nodes,
+		Address: fmt.Sprintf("%s:%d", cfg.SSH.Listen, cfg.SSH.Port),
+		Alias:   cfg.SSH.Alias, Remember: cfg.Remember, AutoStart: cfg.Agent.AutoStart,
+	}, nil
+}
+func (a *App) CheckForUpdates() (update.Info, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, 25*time.Second)
+	defer cancel()
+	return update.Check(ctx, agent.Version)
+}
+func (a *App) InstallUpdate() error {
+	ctx, cancel := context.WithTimeout(a.ctx, 15*time.Minute)
+	defer cancel()
+	return update.DownloadAndLaunch(ctx, agent.Version)
 }
 func (a *App) Start() error { return agent.Start(a.ctx, a.paths) }
 func (a *App) Login(username, password string, remember, autostart bool) (agent.Status, error) {

@@ -5,7 +5,7 @@ Unicode True
  !define ARCH "amd64"
 !endif
 !ifndef VERSION
- !define VERSION "1.0.0"
+ !define VERSION "1.0.2"
 !endif
 !if "${ARCH}" == "amd64"
  !define LABEL "x64"

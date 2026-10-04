@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ARCH="${1:-arm64}"
-VERSION="${VERSION:-1.0.1}"
+VERSION="${VERSION:-1.0.2}"
 case "$ARCH" in amd64|arm64) ;; *) echo 'architecture must be amd64 or arm64' >&2; exit 1 ;; esac
 APP="$PWD/dist/macos-$ARCH/SEU SC Bridge.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

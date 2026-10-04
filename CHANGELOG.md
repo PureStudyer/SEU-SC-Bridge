@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2 — 2026-10-04
+
+- Add in-app release checks and verified Windows update downloads.
+- Show the actual application version in the desktop interface.
+- Recover expired sessions and retry transient SEU and WebShell outages automatically.
+- Restore remembered-password sign-in and recover from stale browser profile locks.
+- Improve startup diagnostics when an existing background agent cannot be reached.
+
 ## 1.0.0 — 2026-09-21 · Public Preview
 
 ### Added

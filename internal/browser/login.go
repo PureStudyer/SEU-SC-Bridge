@@ -78,16 +78,43 @@ func (l Login) Acquire(ctx context.Context) (auth.Credentials, error) {
 	if e != nil {
 		return auth.Credentials{}, e
 	}
-	if !l.Visible {
-		c, e := l.attempt(ctx, executable, false, 35*time.Second)
-		if e == nil {
+	visible := l.Visible
+	if !visible {
+		c, err := l.attempt(ctx, executable, false, 35*time.Second)
+		if err == nil {
 			return c, nil
+		}
+		code := apperr.Code(err)
+		if code == "BROWSER_CONTROL_FAILED" || code == "BROWSER_START_FAILED" {
+			// A previous forced shutdown can leave Chrome holding the persistent
+			// profile lock. Retry with an isolated profile so login can recover.
+			return l.attemptWithFreshProfile(ctx, executable)
+		}
+		// A visible login window cannot fix a browser startup or site error.
+		if code == "SEU_UNREACHABLE" {
+			return auth.Credentials{}, err
 		}
 		if ctx.Err() != nil {
 			return auth.Credentials{}, ctx.Err()
 		}
+		visible = true
 	}
-	return l.attempt(ctx, executable, true, 3*time.Minute)
+	creds, err := l.attempt(ctx, executable, visible, 3*time.Minute)
+	if apperr.Code(err) == "BROWSER_CONTROL_FAILED" && ctx.Err() == nil {
+		return l.attemptWithFreshProfile(ctx, executable)
+	}
+	return creds, err
+}
+
+func (l Login) attemptWithFreshProfile(ctx context.Context, executable string) (auth.Credentials, error) {
+	profile, err := os.MkdirTemp(filepath.Dir(l.Profile), "browser-recovery-")
+	if err != nil {
+		return auth.Credentials{}, apperr.New("BROWSER_START_FAILED", "无法创建登录浏览器恢复目录")
+	}
+	defer os.RemoveAll(profile)
+	recovery := l
+	recovery.Profile = profile
+	return recovery.attempt(ctx, executable, true, 3*time.Minute)
 }
 func (l Login) attempt(parent context.Context, executable string, visible bool, timeout time.Duration) (auth.Credentials, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
@@ -148,8 +175,17 @@ func (l Login) attempt(parent context.Context, executable string, visible bool, 
 			delete(extra, e.RequestID)
 		}
 	})
-	if e := chromedp.Run(bc, network.Enable(), chromedp.Navigate(l.Config.SEU.BaseURL)); e != nil {
-		return auth.Credentials{}, apperr.New("SEU_UNREACHABLE", "无法打开 SEU 登录网站")
+	if e := chromedp.Run(bc, network.Enable()); e != nil {
+		if ctx.Err() != nil {
+			return auth.Credentials{}, apperr.New("BROWSER_START_FAILED", "无法启动或控制登录浏览器")
+		}
+		return auth.Credentials{}, apperr.New("BROWSER_CONTROL_FAILED", "无法控制登录浏览器")
+	}
+	if e := chromedp.Run(bc, chromedp.Navigate(l.Config.SEU.BaseURL)); e != nil {
+		if ctx.Err() != nil {
+			return auth.Credentials{}, apperr.New("SEU_UNREACHABLE", "等待 SEU 登录页面超时")
+		}
+		return auth.Credentials{}, apperr.New("SEU_UNREACHABLE", "登录浏览器无法加载 SEU 网站")
 	}
 	filled := false
 	lastProgress := ""

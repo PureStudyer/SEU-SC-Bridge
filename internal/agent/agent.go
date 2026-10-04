@@ -31,7 +31,7 @@ import (
 	"time"
 )
 
-var Version = "1.0.0"
+var Version = "1.0.2"
 
 type Status struct {
 	Version   string         `json:"version"`
@@ -122,7 +122,7 @@ func Run(parent context.Context, p platform.Paths) error {
 	a.setState("AUTH_REQUIRED", "")
 	log.Info("agent started", "address", listener.Addr().String())
 	if cfg.Username != "" {
-		go func() { _, _ = a.tokens.Get(ctx) }()
+		go a.restoreConnection(ctx)
 	}
 	<-ctx.Done()
 	a.setState("STOPPED", "")
@@ -133,6 +133,38 @@ func Run(parent context.Context, p platform.Paths) error {
 	a.server.Wait()
 	log.Info("agent stopped")
 	return nil
+}
+
+// restoreConnection retries transient startup failures so temporary site or
+// local browser outages do not leave the bridge disconnected until a manual
+// restart. Interactive authentication failures remain user-driven.
+func (a *Agent) restoreConnection(ctx context.Context) {
+	delay := 5 * time.Second
+	for {
+		_, err := a.tokens.Get(ctx)
+		if err == nil || ctx.Err() != nil {
+			return
+		}
+		code := apperr.Code(err)
+		if code != "SEU_UNREACHABLE" && code != "BROWSER_START_FAILED" && code != "BROWSER_CONTROL_FAILED" && code != "WEBSOCKET_FAILED" {
+			return
+		}
+		a.setState("ERROR", code)
+		a.log.Warn("automatic connection retry scheduled", "code", code, "delay_seconds", int(delay.Seconds()))
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		if delay < time.Minute {
+			delay *= 2
+			if delay > time.Minute {
+				delay = time.Minute
+			}
+		}
+	}
 }
 func (a *Agent) setState(state, code string) {
 	a.mu.Lock()
@@ -190,7 +222,24 @@ func (a *Agent) connect(ctx context.Context, rows, cols int) (webshell.Session, 
 	base := a.cfg.SEU.BaseURL
 	inputMode := a.cfg.SEU.InputMode
 	a.mu.Unlock()
-	ws, e := a.tokens.Connect(ctx, &webshell.Client{BaseURL: base, InputMode: inputMode}, node, rows, cols)
+	client := &webshell.Client{BaseURL: base, InputMode: inputMode}
+	var ws webshell.Session
+	var e error
+	for attempt := 0; attempt < 4; attempt++ {
+		ws, e = a.tokens.Connect(ctx, client, node, rows, cols)
+		if e == nil || apperr.Code(e) != "WEBSOCKET_FAILED" || attempt == 3 {
+			break
+		}
+		delay := time.Duration(1<<attempt) * time.Second
+		a.log.Warn("WebShell connection lost; retrying", "attempt", attempt+1, "delay_seconds", int(delay.Seconds()))
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
 	if e != nil {
 		if e == webshell.ErrUnauthorized {
 			a.setState("AUTH_REQUIRED", "TOKEN_EXPIRED")
@@ -226,7 +275,7 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 	case "restart":
 		a.cancelAuth()
 		a.server.DisconnectAll()
-		go func() { _, _ = a.tokens.Get(a.ctx) }()
+		go a.restoreConnection(a.ctx)
 		return ipc.Reply(a.status(), nil)
 	case "login":
 		defer func() { a.mu.Lock(); a.password = ""; a.mu.Unlock() }()

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SEUSC 集群助手"
+  short_description: "通过 SSH 和 SFTP 管理东南大学集群的代码、Slurm 作业与结果"
+  default_prompt: "使用 $seusc-cluster 检查当前集群资源，并按我的任务要求上传代码、提交 Slurm 作业和取回结果。"
