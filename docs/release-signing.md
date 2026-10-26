@@ -75,10 +75,10 @@ If Microsoft Artifact Signing is selected instead of a PFX certificate, the work
 After all secrets are present, push the release tag:
 
 ```bash
-git tag v1.0.2
-git push origin v1.0.2
+git tag v1.0.3
+git push origin v1.0.3
 ```
 
-GitHub Actions builds Windows `x64` and `arm64` installers plus macOS Intel and Apple Silicon DMGs, creates `SHA256SUMS.txt`, and publishes the release. The workflow can also be started manually from the Actions page with a tag such as `v1.0.2`.
+GitHub Actions builds Windows `x64` and `arm64` installers plus macOS Intel and Apple Silicon DMGs, creates `SHA256SUMS.txt`, and publishes the release. The workflow can also be started manually from the Actions page with a tag such as `v1.0.3`.
 
 The Apple Developer Program is required for Developer ID distribution and notarization. Apple API keys and their private `.p8` files are sensitive credentials; do not paste them into chat, issues, logs, or the repository.

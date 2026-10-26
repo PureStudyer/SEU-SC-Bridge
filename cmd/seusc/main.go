@@ -230,7 +230,10 @@ func doctor(ctx context.Context, p platform.Paths) error {
 		e = fmt.Errorf("managed block missing")
 	}
 	check("SSH config", e)
-	_, e = (credential.System{}).Get(cfg.Username)
+	savedPassword, e := (credential.System{}).Get(cfg.Username)
+	if e == nil && cfg.Remember && cfg.Username != "" && savedPassword == "" {
+		e = fmt.Errorf("记住密码已启用，但凭据管理器中没有该账号的密码")
+	}
 	check("credential store", e)
 	probe, c := context.WithTimeout(ctx, 3*time.Second)
 	var st agent.Status

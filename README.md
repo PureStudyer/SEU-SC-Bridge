@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.2">下载安装</a> ·
+  <a href="https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.3">下载安装</a> ·
   <a href="#三步开始">快速开始</a> ·
   <a href="docs/guide.md">使用手册</a> ·
   <a href="https://github.com/PureStudyer/SEU-SC-Bridge/issues">反馈问题</a>
@@ -31,16 +31,16 @@ SEU SC Bridge 是一个非官方的 SEU 超算桌面客户端，将平台 WebShe
 
 ### 1. 下载并安装
 
-从 **[GitHub Releases](https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.2)** 下载：
+从 **[GitHub Releases](https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.3)** 下载：
 
 | 系统 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows 10/11 · Intel / AMD | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-Setup-x64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-windows-x64.exe) | x64 正式构建，未签名 |
-| Windows 11 · ARM64 | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-Setup-arm64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-windows-arm64.exe) | ARM64 正式构建，未签名 |
-| macOS · Intel | [SEU-SC-Bridge-amd64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-amd64.dmg) | Intel 正式构建，未签名 |
-| macOS · Apple Silicon | [SEU-SC-Bridge-arm64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SEU-SC-Bridge-arm64.dmg) | Apple Silicon 正式构建，未签名 |
+| Windows 10/11 · Intel / AMD | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-Setup-x64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-windows-x64.exe) | x64 正式构建，未签名 |
+| Windows 11 · ARM64 | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-Setup-arm64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-windows-arm64.exe) | ARM64 正式构建，未签名 |
+| macOS · Intel | [SEU-SC-Bridge-amd64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-amd64.dmg) | Intel 正式构建，未签名 |
+| macOS · Apple Silicon | [SEU-SC-Bridge-arm64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-arm64.dmg) | Apple Silicon 正式构建，未签名 |
 
-> **v1.0.2 为正式发布版本。** 当前 Windows 和 macOS 产物未代码签名；首次启动时可能出现 Windows SmartScreen 或 macOS Gatekeeper 提示。请从 Release 下载，并对照 [SHA256SUMS.txt](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.2/SHA256SUMS.txt) 校验文件。
+> **v1.0.3 为正式发布版本。** 当前 Windows 和 macOS 产物未代码签名；首次启动时可能出现 Windows SmartScreen 或 macOS Gatekeeper 提示。请从 Release 下载，并对照 [SHA256SUMS.txt](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SHA256SUMS.txt) 校验文件。
 
 Windows 使用当前用户安装，无需管理员权限。需要 **Chrome / Edge / Chromium**；桌面界面需要 **Microsoft Edge WebView2 Runtime**。
 

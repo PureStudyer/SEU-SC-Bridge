@@ -31,28 +31,31 @@ import (
 	"time"
 )
 
-var Version = "1.0.2"
+var Version = "1.0.3"
 
 type Status struct {
-	Version   string         `json:"version"`
-	State     string         `json:"state"`
-	Account   string         `json:"account"`
-	Node      string         `json:"node"`
-	Nodes     map[string]int `json:"nodes"`
-	Address   string         `json:"address"`
-	Alias     string         `json:"alias"`
-	Remember  bool           `json:"remember"`
-	AutoStart bool           `json:"autostart"`
-	ErrorCode string         `json:"error_code,omitempty"`
-	PID       int            `json:"pid"`
+	Version          string         `json:"version"`
+	State            string         `json:"state"`
+	Account          string         `json:"account"`
+	Node             string         `json:"node"`
+	Nodes            map[string]int `json:"nodes"`
+	Address          string         `json:"address"`
+	Alias            string         `json:"alias"`
+	Remember         bool           `json:"remember"`
+	CredentialStored bool           `json:"credential_stored"`
+	AutoStart        bool           `json:"autostart"`
+	ErrorCode        string         `json:"error_code,omitempty"`
+	PID              int            `json:"pid"`
 }
 type Agent struct {
 	commandMu             sync.Mutex
 	mu                    sync.Mutex
 	authOp                sync.Mutex
+	recoveryMu            sync.Mutex
 	paths                 platform.Paths
 	cfg                   config.Config
 	state, code, password string
+	credentialStored      bool
 	visible               bool
 	authCancel            context.CancelFunc
 	tokens                *auth.Manager
@@ -72,7 +75,14 @@ func Run(parent context.Context, p platform.Paths) error {
 	if !ok {
 		return apperr.New("ALREADY_RUNNING", "SEUSC 后台进程已运行")
 	}
-	defer lock.Unlock()
+	if e = platform.WriteAgentPID(p.AgentPID); e != nil {
+		_ = lock.Unlock()
+		return fmt.Errorf("write agent PID record: %w", e)
+	}
+	defer func() {
+		_ = lock.Unlock()
+		platform.ClearAgentPID(p.AgentPID, os.Getpid())
+	}()
 	cfg, e := config.Load(p.ConfigDir)
 	if e != nil {
 		return e
@@ -82,6 +92,13 @@ func Run(parent context.Context, p platform.Paths) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	a := &Agent{paths: p, cfg: cfg, state: "STARTING", store: credential.System{}, log: log, cancel: cancel, ctx: ctx}
+	if cfg.Remember && cfg.Username != "" {
+		password, credentialErr := a.store.Get(cfg.Username)
+		a.credentialStored = credentialErr == nil && password != ""
+		if credentialErr != nil {
+			log.Warn("saved credential unavailable", "code", apperr.Code(credentialErr))
+		}
+	}
 	a.tokens = auth.New(a.acquire)
 	host, key, e := config.EnsureSSH(p, cfg)
 	if e != nil {
@@ -127,8 +144,6 @@ func Run(parent context.Context, p platform.Paths) error {
 	<-ctx.Done()
 	a.setState("STOPPED", "")
 	a.cancelAuth()
-	a.authOp.Lock()
-	a.authOp.Unlock()
 	a.server.DisconnectAll()
 	a.server.Wait()
 	log.Info("agent stopped")
@@ -139,14 +154,27 @@ func Run(parent context.Context, p platform.Paths) error {
 // local browser outages do not leave the bridge disconnected until a manual
 // restart. Interactive authentication failures remain user-driven.
 func (a *Agent) restoreConnection(ctx context.Context) {
+	if !a.recoveryMu.TryLock() {
+		return
+	}
+	defer a.recoveryMu.Unlock()
 	delay := 5 * time.Second
 	for {
 		_, err := a.tokens.Get(ctx)
-		if err == nil || ctx.Err() != nil {
+		var session webshell.Session
+		if err == nil {
+			session, err = a.connectWithRetries(ctx, 24, 80)
+		}
+		if err == nil {
+			_ = session.Close()
+			a.setState("READY", "")
 			return
 		}
-		code := apperr.Code(err)
-		if code != "SEU_UNREACHABLE" && code != "BROWSER_START_FAILED" && code != "BROWSER_CONTROL_FAILED" && code != "WEBSOCKET_FAILED" {
+		if ctx.Err() != nil {
+			return
+		}
+		code := reconnectErrorCode(err)
+		if !isReconnectable(err) {
 			return
 		}
 		a.setState("ERROR", code)
@@ -179,7 +207,7 @@ func (a *Agent) status() Status {
 	for n, id := range a.cfg.Nodes {
 		nodes[n] = id
 	}
-	return Status{Version: Version, State: a.state, Account: a.cfg.Username, Node: a.cfg.SEU.DefaultNode, Nodes: nodes, Address: fmt.Sprintf("%s:%d", a.cfg.SSH.Listen, a.cfg.SSH.Port), Alias: a.cfg.SSH.Alias, Remember: a.cfg.Remember, AutoStart: a.cfg.Agent.AutoStart, ErrorCode: a.code, PID: os.Getpid()}
+	return Status{Version: Version, State: a.state, Account: a.cfg.Username, Node: a.cfg.SEU.DefaultNode, Nodes: nodes, Address: fmt.Sprintf("%s:%d", a.cfg.SSH.Listen, a.cfg.SSH.Port), Alias: a.cfg.SSH.Alias, Remember: a.cfg.Remember, CredentialStored: a.credentialStored, AutoStart: a.cfg.Agent.AutoStart, ErrorCode: a.code, PID: os.Getpid()}
 }
 func (a *Agent) acquire(ctx context.Context) (auth.Credentials, error) {
 	a.authOp.Lock()
@@ -217,6 +245,14 @@ func (a *Agent) acquire(ctx context.Context) (auth.Credentials, error) {
 	return creds, nil
 }
 func (a *Agent) connect(ctx context.Context, rows, cols int) (webshell.Session, error) {
+	ws, err := a.connectWithRetries(ctx, rows, cols)
+	if err != nil && ctx.Err() == nil && a.ctx != nil && isReconnectable(err) {
+		go a.restoreConnection(a.ctx)
+	}
+	return ws, err
+}
+
+func (a *Agent) connectWithRetries(ctx context.Context, rows, cols int) (webshell.Session, error) {
 	a.mu.Lock()
 	node := a.cfg.Nodes[a.cfg.SEU.DefaultNode]
 	base := a.cfg.SEU.BaseURL
@@ -227,11 +263,13 @@ func (a *Agent) connect(ctx context.Context, rows, cols int) (webshell.Session, 
 	var e error
 	for attempt := 0; attempt < 4; attempt++ {
 		ws, e = a.tokens.Connect(ctx, client, node, rows, cols)
-		if e == nil || apperr.Code(e) != "WEBSOCKET_FAILED" || attempt == 3 {
+		if e == nil || !isReconnectable(e) || attempt == 3 {
 			break
 		}
 		delay := time.Duration(1<<attempt) * time.Second
-		a.log.Warn("WebShell connection lost; retrying", "attempt", attempt+1, "delay_seconds", int(delay.Seconds()))
+		code := reconnectErrorCode(e)
+		a.setState("AUTHENTICATING", code)
+		a.log.Warn("WebShell recovery retry scheduled", "code", code, "attempt", attempt+1, "delay_seconds", int(delay.Seconds()))
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -241,13 +279,35 @@ func (a *Agent) connect(ctx context.Context, rows, cols int) (webshell.Session, 
 		}
 	}
 	if e != nil {
-		if e == webshell.ErrUnauthorized {
-			a.setState("AUTH_REQUIRED", "TOKEN_EXPIRED")
+		if errors.Is(e, webshell.ErrUnauthorized) {
+			a.setState("ERROR", "TOKEN_EXPIRED")
+		} else if isReconnectable(e) {
+			a.setState("ERROR", reconnectErrorCode(e))
 		}
 		return nil, e
 	}
+	a.setState("READY", "")
 	a.log.Info("webshell connected", "node_id", node)
 	return ws, nil
+}
+
+func reconnectErrorCode(err error) string {
+	if errors.Is(err, webshell.ErrUnauthorized) {
+		return "TOKEN_EXPIRED"
+	}
+	return apperr.Code(err)
+}
+
+func isReconnectable(err error) bool {
+	if errors.Is(err, webshell.ErrUnauthorized) {
+		return true
+	}
+	switch apperr.Code(err) {
+	case "SEU_UNREACHABLE", "BROWSER_START_FAILED", "BROWSER_CONTROL_FAILED", "WEBSOCKET_FAILED", "TOKEN_EXPIRED":
+		return true
+	default:
+		return false
+	}
 }
 func (a *Agent) cancelAuth() {
 	a.mu.Lock()
@@ -294,6 +354,9 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 				return ipc.Reply(nil, e)
 			}
 			a.server.DisconnectAll()
+			a.mu.Lock()
+			a.credentialStored = false
+			a.mu.Unlock()
 			if e := os.RemoveAll(a.paths.Profile); e != nil {
 				a.authOp.Unlock()
 				return ipc.Reply(nil, e)
@@ -314,10 +377,23 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 			if e := a.store.Delete(r.Username); e != nil {
 				return ipc.Reply(nil, e)
 			}
+			a.mu.Lock()
+			a.credentialStored = false
+			a.mu.Unlock()
 		}
 		_, e := a.tokens.Get(ctx)
-		if e == nil && r.Remember && r.Password != "" {
-			e = a.store.Set(r.Username, r.Password)
+		if e == nil && r.Remember {
+			stored := r.Password != ""
+			if stored {
+				e = a.store.Set(r.Username, r.Password)
+			} else {
+				var saved string
+				saved, e = a.store.Get(r.Username)
+				stored = e == nil && saved != ""
+			}
+			a.mu.Lock()
+			a.credentialStored = e == nil && stored
+			a.mu.Unlock()
 		}
 		a.mu.Lock()
 		a.password = ""
@@ -341,6 +417,7 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 		a.password = ""
 		a.cfg.Username = ""
 		a.cfg.Remember = false
+		a.credentialStored = false
 		cfg := a.cfg
 		a.mu.Unlock()
 		a.setState("AUTH_REQUIRED", "")

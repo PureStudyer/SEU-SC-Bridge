@@ -78,7 +78,7 @@ func (m *Manager) InvalidateToken(token string) {
 func (m *Manager) Refresh(ctx context.Context) (string, error) { m.Invalidate(); return m.Get(ctx) }
 func (m *Manager) HasToken() bool                              { m.mu.Lock(); defer m.mu.Unlock(); return m.cached.Token != "" }
 func (m *Manager) Connect(ctx context.Context, client *webshell.Client, node, rows, cols int) (webshell.Session, error) {
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := 0; attempt < 3; attempt++ {
 		c, err := m.GetCredentials(ctx)
 		if err != nil {
 			return nil, err

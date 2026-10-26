@@ -100,3 +100,33 @@ func TestRefreshOnce(t *testing.T) {
 		t.Fatal("retry count incorrect")
 	}
 }
+
+func TestRefreshAfterRepeatedUnauthorized(t *testing.T) {
+	var attempts, providers atomic.Int32
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempts.Add(1) < 3 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		c, e := websocket.Accept(w, r, nil)
+		if e == nil {
+			defer c.CloseNow()
+			<-r.Context().Done()
+		}
+	}))
+	defer s.Close()
+	m := New(func(context.Context) (Credentials, error) {
+		providers.Add(1)
+		return Credentials{Token: "token"}, nil
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	ws, err := m.Connect(ctx, &webshell.Client{BaseURL: s.URL}, 6, 24, 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws.Close()
+	if attempts.Load() != 3 || providers.Load() != 3 {
+		t.Fatalf("attempts=%d providers=%d, want 3 each", attempts.Load(), providers.Load())
+	}
+}

@@ -107,11 +107,13 @@ func (l Login) Acquire(ctx context.Context) (auth.Credentials, error) {
 }
 
 func (l Login) attemptWithFreshProfile(ctx context.Context, executable string) (auth.Credentials, error) {
-	profile, err := os.MkdirTemp(filepath.Dir(l.Profile), "browser-recovery-")
-	if err != nil {
+	// Keep this isolated profile across runs. A temporary profile fixes the
+	// current Chrome lock but discards the SSO session as soon as login ends,
+	// forcing the user through authentication again after every reconnect.
+	profile := l.Profile + "-recovery"
+	if err := os.MkdirAll(profile, 0700); err != nil {
 		return auth.Credentials{}, apperr.New("BROWSER_START_FAILED", "无法创建登录浏览器恢复目录")
 	}
-	defer os.RemoveAll(profile)
 	recovery := l
 	recovery.Profile = profile
 	return recovery.attempt(ctx, executable, true, 3*time.Minute)

@@ -9,6 +9,7 @@ import (
 	"github.com/PureStudyer/SEU-SC-Bridge/frontend"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/agent"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/config"
+	"github.com/PureStudyer/SEU-SC-Bridge/internal/credential"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/ipc"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/platform"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/update"
@@ -24,10 +25,13 @@ import (
 )
 
 type App struct {
-	paths platform.Paths
-	ctx   context.Context
-	ready chan struct{}
-	once  sync.Once
+	paths            platform.Paths
+	ctx              context.Context
+	ready            chan struct{}
+	once             sync.Once
+	autoStartMu      sync.Mutex
+	autoStartRunning bool
+	lastAutoStart    time.Time
 }
 
 func (a *App) startup(ctx context.Context) { a.ctx = ctx; a.once.Do(func() { close(a.ready) }) }
@@ -43,13 +47,40 @@ func (a *App) Status() (agent.Status, error) {
 	if configErr != nil {
 		return st, e
 	}
+	if cfg.Agent.AutoStart {
+		a.ensureAgentRunning()
+	}
+	savedPassword, _ := (credential.System{}).Get(cfg.Username)
 	return agent.Status{
 		Version: agent.Version, State: "STOPPED", Account: cfg.Username,
 		Node: cfg.SEU.DefaultNode, Nodes: cfg.Nodes,
 		Address: fmt.Sprintf("%s:%d", cfg.SSH.Listen, cfg.SSH.Port),
-		Alias:   cfg.SSH.Alias, Remember: cfg.Remember, AutoStart: cfg.Agent.AutoStart,
+		Alias:   cfg.SSH.Alias, Remember: cfg.Remember,
+		CredentialStored: cfg.Remember && savedPassword != "", AutoStart: cfg.Agent.AutoStart,
 	}, nil
 }
+
+func (a *App) ensureAgentRunning() {
+	a.autoStartMu.Lock()
+	if a.autoStartRunning || time.Since(a.lastAutoStart) < 10*time.Second {
+		a.autoStartMu.Unlock()
+		return
+	}
+	a.autoStartRunning = true
+	a.lastAutoStart = time.Now()
+	a.autoStartMu.Unlock()
+	go func() {
+		defer func() {
+			a.autoStartMu.Lock()
+			a.autoStartRunning = false
+			a.autoStartMu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
+		defer cancel()
+		_ = agent.Start(ctx, a.paths)
+	}()
+}
+
 func (a *App) CheckForUpdates() (update.Info, error) {
 	ctx, cancel := context.WithTimeout(a.ctx, 25*time.Second)
 	defer cancel()

@@ -7,7 +7,7 @@ import (
 	"runtime"
 )
 
-type Paths struct{ ConfigDir, DataDir, LogDir, Profile, SSHDir, Socket, Lock string }
+type Paths struct{ ConfigDir, DataDir, LogDir, Profile, SSHDir, Socket, Lock, AgentPID string }
 
 func DefaultPaths() (Paths, error) {
 	home, e := os.UserHomeDir()
@@ -36,7 +36,7 @@ func DefaultPaths() (Paths, error) {
 			l = filepath.Join(c, "logs")
 		}
 	}
-	p := Paths{ConfigDir: c, DataDir: d, LogDir: l, Profile: filepath.Join(d, "browser-profile"), SSHDir: filepath.Join(home, ".ssh"), Socket: filepath.Join(d, "agent.sock"), Lock: filepath.Join(d, "agent.lock")}
+	p := Paths{ConfigDir: c, DataDir: d, LogDir: l, Profile: filepath.Join(d, "browser-profile"), SSHDir: filepath.Join(home, ".ssh"), Socket: filepath.Join(d, "agent.sock"), Lock: filepath.Join(d, "agent.lock"), AgentPID: filepath.Join(d, "agent.pid")}
 	for _, dir := range []string{c, d, l, p.SSHDir} {
 		if e = os.MkdirAll(dir, 0700); e != nil {
 			return p, e

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 — 2026-10-26
+
+- Automatically recover an unresponsive background agent without leaving its single-instance lock stuck.
+- Reauthenticate after expired WebShell tokens and verify the connection during background recovery.
+- Keep the recovery browser profile between reconnects and show whether a password is actually stored.
+
 ## 1.0.2 — 2026-10-04
 
 - Add in-app release checks and verified Windows update downloads.

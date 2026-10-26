@@ -19,8 +19,8 @@
     "#1": {
       "0000": {
         "fixed": {
-          "file_version": "1.0.2.0",
-          "product_version": "1.0.2.0"
+          "file_version": "1.0.3.0",
+          "product_version": "1.0.3.0"
         },
         "info": {
           "0409": {
@@ -28,8 +28,8 @@
             "FileDescription": "SEU SC Bridge",
             "ProductName": "SEU SC Bridge",
             "OriginalFilename": "seusc.exe",
-            "FileVersion": "1.0.2",
-            "ProductVersion": "1.0.2"
+            "FileVersion": "1.0.3",
+            "ProductVersion": "1.0.3"
           }
         }
       }
