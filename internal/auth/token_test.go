@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"github.com/PureStudyer/SEU-SC-Bridge/internal/apperr"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/webshell"
 	"github.com/coder/websocket"
 	"net/http"
@@ -98,6 +99,22 @@ func TestRefreshOnce(t *testing.T) {
 	cancel()
 	if attempts.Load() != 2 || providers.Load() != 2 {
 		t.Fatal("retry count incorrect")
+	}
+}
+
+func TestForbiddenKeepsSession(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+	manager := New(func(context.Context) (Credentials, error) {
+		return Credentials{Token: "test-token"}, nil
+	})
+	_, err := manager.Connect(context.Background(), &webshell.Client{BaseURL: server.URL}, 6, 24, 80)
+	if apperr.Code(err) != "WEBSHELL_FORBIDDEN" || requests.Load() != 1 || !manager.HasToken() {
+		t.Fatalf("error=%v, requests=%d, cached=%v", err, requests.Load(), manager.HasToken())
 	}
 }
 

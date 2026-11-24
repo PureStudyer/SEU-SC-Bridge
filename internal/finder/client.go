@@ -86,7 +86,7 @@ func (c *Client) request(ctx context.Context, method, endpoint string, q url.Val
 		if e != nil {
 			return nil, errors.New("file service request failed; check network")
 		}
-		if res.StatusCode == 401 || res.StatusCode == 403 {
+		if res.StatusCode == http.StatusUnauthorized {
 			res.Body.Close()
 			c.Tokens.InvalidateToken(creds.Token)
 			continue

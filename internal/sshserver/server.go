@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PureStudyer/SEU-SC-Bridge/internal/apperr"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/bridge"
 	"github.com/PureStudyer/SEU-SC-Bridge/internal/webshell"
 	"golang.org/x/crypto/ssh"
@@ -227,7 +228,11 @@ func (s *Server) session(parent context.Context, ch ssh.Channel, requests <-chan
 				go func() {
 					session, err := s.Connect(ctx, initialRows, initialCols)
 					if err != nil {
-						io.WriteString(ch.Stderr(), "SEUSC: 无法连接 WebShell，请运行 seusc status / seusc login。\r\n")
+						message := "无法连接 WebShell，请运行 seusc status 检查连接。"
+						if apperr.Code(err) == "WEBSHELL_FORBIDDEN" {
+							message = err.Error()
+						}
+						fmt.Fprintf(ch.Stderr(), "SEUSC: %s\r\n", message)
 						done <- 255
 						return
 					}
@@ -250,8 +255,11 @@ func (s *Server) session(parent context.Context, ch ssh.Channel, requests <-chan
 						}
 						done <- code
 					} else {
-						_, _ = io.Copy(ch, session)
-						done <- 0
+						if _, err := io.Copy(ch, session); err != nil {
+							done <- 255
+						} else {
+							done <- 0
+						}
 					}
 				}()
 				go func() {

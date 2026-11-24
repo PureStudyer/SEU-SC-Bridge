@@ -27,6 +27,8 @@ Windows amd64/arm64 提供构建脚本和 NSIS 安装器。macOS amd64/arm64 提
 
 ## 协议说明：与原始 spec 的差异
 
+代理在 Bridge 管理的浏览器中打开 `/webssh-connect`。官方页面选择登录节点、发起 WebSocket 握手并维持心跳。每个本地 SSH 会话对应独立的浏览器标签页，关闭会话会释放该页。若官方页面返回 HTTP 403，代理会显示 `WEBSHELL_FORBIDDEN` 并停止该连接的自动重试。
+
 实测当前 SEU 站点前端使用 JSON 文本帧输入：
 
 ~~~json

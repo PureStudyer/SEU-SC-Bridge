@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-11-24
+
+- `ssh seusc` 现在通过 Bridge 管理的浏览器打开官方 WebSSH 页面。每个 SSH 会话使用独立标签页，退出时自动关闭。
+- 本地终端和命令行 agent 可继续使用原有 SSH 别名。已在 Windows x64 实机验证并发命令、远端退出码、中文输入输出、Ctrl+C 和窗口缩放。
+- `seusc doctor` 使用浏览器检查站点和终端。官方页面拒绝连接时，Bridge 显示 HTTP 403 并停止自动重试。
+
 ## 1.0.3 — 2026-10-26
 
 - Automatically recover an unresponsive background agent without leaving its single-instance lock stuck.

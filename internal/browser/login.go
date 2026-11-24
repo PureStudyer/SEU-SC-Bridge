@@ -66,6 +66,7 @@ func Find(explicit string) (string, error) {
 }
 
 type Login struct {
+	Browser            *Controller
 	Profile            string
 	Config             config.Config
 	Username, Password string
@@ -121,17 +122,11 @@ func (l Login) attemptWithFreshProfile(ctx context.Context, executable string) (
 func (l Login) attempt(parent context.Context, executable string, visible bool, timeout time.Duration) (auth.Credentials, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
-	opts = append(opts, chromedp.ExecPath(executable), chromedp.UserDataDir(l.Profile), chromedp.Flag("headless", !visible), chromedp.Flag("disable-gpu", !visible), chromedp.Flag("no-first-run", true), chromedp.Flag("no-default-browser-check", true))
-	ac, closeAllocator := chromedp.NewExecAllocator(ctx, opts...)
-	defer closeAllocator()
-	bc, closeBrowser := chromedp.NewContext(ac, chromedp.WithLogf(func(string, ...any) {}), chromedp.WithErrorf(func(string, ...any) {}))
-	defer closeBrowser()
-	defer func() {
-		shutdown, stop := context.WithTimeout(bc, 5*time.Second)
-		defer stop()
-		_ = chromedp.Cancel(shutdown)
-	}()
+	bc, closeTab, err := l.Browser.loginTab(ctx, executable, l.Profile, visible)
+	if err != nil {
+		return auth.Credentials{}, err
+	}
+	defer closeTab()
 	tokens := make(chan string, 1)
 	var mu sync.Mutex
 	allowed := map[network.RequestID]bool{}

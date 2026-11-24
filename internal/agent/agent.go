@@ -23,7 +23,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +30,7 @@ import (
 	"time"
 )
 
-var Version = "1.0.3"
+var Version = "1.1.0"
 
 type Status struct {
 	Version          string         `json:"version"`
@@ -58,6 +57,7 @@ type Agent struct {
 	credentialStored      bool
 	visible               bool
 	authCancel            context.CancelFunc
+	browser               *browser.Controller
 	tokens                *auth.Manager
 	store                 credential.Store
 	log                   *slog.Logger
@@ -99,6 +99,8 @@ func Run(parent context.Context, p platform.Paths) error {
 			log.Warn("saved credential unavailable", "code", apperr.Code(credentialErr))
 		}
 	}
+	a.browser = &browser.Controller{Lifetime: ctx}
+	defer a.browser.Reset()
 	a.tokens = auth.New(a.acquire)
 	host, key, e := config.EnsureSSH(p, cfg)
 	if e != nil {
@@ -234,13 +236,12 @@ func (a *Agent) acquire(ctx context.Context) (auth.Credentials, error) {
 		}
 	}
 	a.setState("AUTHENTICATING", "")
-	creds, e := (browser.Login{Profile: a.paths.Profile, Config: cfg, Username: cfg.Username, Password: password, Visible: visible, Progress: func(state string) { a.log.Debug("browser login progress", "state", state) }}).Acquire(ac)
+	creds, e := (browser.Login{Browser: a.browser, Profile: a.paths.Profile, Config: cfg, Username: cfg.Username, Password: password, Visible: visible, Progress: func(state string) { a.log.Debug("browser login progress", "state", state) }}).Acquire(ac)
 	if e != nil {
 		a.setState("AUTH_REQUIRED", apperr.Code(e))
 		a.log.Warn("authentication required", "code", apperr.Code(e))
 		return auth.Credentials{}, e
 	}
-	a.setState("READY", "")
 	a.log.Info("authentication acquired")
 	return creds, nil
 }
@@ -254,11 +255,12 @@ func (a *Agent) connect(ctx context.Context, rows, cols int) (webshell.Session, 
 
 func (a *Agent) connectWithRetries(ctx context.Context, rows, cols int) (webshell.Session, error) {
 	a.mu.Lock()
-	node := a.cfg.Nodes[a.cfg.SEU.DefaultNode]
+	name := a.cfg.SEU.DefaultNode
+	node := a.cfg.Nodes[name]
 	base := a.cfg.SEU.BaseURL
 	inputMode := a.cfg.SEU.InputMode
 	a.mu.Unlock()
-	client := &webshell.Client{BaseURL: base, InputMode: inputMode}
+	client := &browser.TerminalClient{Browser: a.browser, BaseURL: base, NodeName: name, InputMode: inputMode}
 	var ws webshell.Session
 	var e error
 	for attempt := 0; attempt < 4; attempt++ {
@@ -279,10 +281,9 @@ func (a *Agent) connectWithRetries(ctx context.Context, rows, cols int) (webshel
 		}
 	}
 	if e != nil {
-		if errors.Is(e, webshell.ErrUnauthorized) {
-			a.setState("ERROR", "TOKEN_EXPIRED")
-		} else if isReconnectable(e) {
-			a.setState("ERROR", reconnectErrorCode(e))
+		code := reconnectErrorCode(e)
+		if code == "WEBSHELL_FORBIDDEN" || code == "NODE_UNAVAILABLE" || isReconnectable(e) {
+			a.setState("ERROR", code)
 		}
 		return nil, e
 	}
@@ -357,7 +358,7 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 			a.mu.Lock()
 			a.credentialStored = false
 			a.mu.Unlock()
-			if e := os.RemoveAll(a.paths.Profile); e != nil {
+			if e := a.clearBrowser(); e != nil {
 				a.authOp.Unlock()
 				return ipc.Reply(nil, e)
 			}
@@ -398,6 +399,13 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 		a.mu.Lock()
 		a.password = ""
 		a.mu.Unlock()
+		if e == nil {
+			var session webshell.Session
+			session, e = a.connect(ctx, 24, 80)
+			if e == nil {
+				_ = session.Close()
+			}
+		}
 		return ipc.Reply(a.status(), e)
 	case "logout":
 		a.cancelAuth()
@@ -410,7 +418,7 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 		if e := a.store.Delete(user); e != nil {
 			return ipc.Reply(nil, e)
 		}
-		if e := os.RemoveAll(a.paths.Profile); e != nil {
+		if e := a.clearBrowser(); e != nil {
 			return ipc.Reply(nil, e)
 		}
 		a.mu.Lock()
@@ -473,14 +481,13 @@ func (a *Agent) handle(ctx context.Context, r ipc.Request) ipc.Response {
 		}
 		return ipc.Reply(nil, e)
 	case "check-site":
-		client := http.Client{Timeout: 10 * time.Second}
-		req, _ := http.NewRequestWithContext(ctx, "GET", "https://sc.seu.edu.cn", nil)
-		res, e := client.Do(req)
-		if e != nil {
-			return ipc.Reply(nil, apperr.New("SEU_UNREACHABLE", "SEU 网站不可达"))
-		}
-		res.Body.Close()
-		return ipc.Reply(res.StatusCode, nil)
+		a.mu.Lock()
+		path, site := a.cfg.Browser.Path, a.cfg.SEU.BaseURL
+		a.mu.Unlock()
+		probe, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		status, err := browser.CheckSite(probe, path, site)
+		return ipc.Reply(status, err)
 	default:
 		return ipc.Reply(nil, apperr.New("INTERNAL_ERROR", "未知操作"))
 	}
@@ -524,4 +531,12 @@ func (a *Agent) serveSFTP(ctx context.Context, ch ssh.Channel) error {
 		return nil
 	}}, Home: home, TempDir: filepath.Join(a.paths.DataDir, "transfers")}
 	return h.Serve(ch)
+}
+
+func (a *Agent) clearBrowser() error {
+	a.browser.Reset()
+	if err := os.RemoveAll(a.paths.Profile); err != nil {
+		return err
+	}
+	return os.RemoveAll(a.paths.Profile + "-recovery")
 }

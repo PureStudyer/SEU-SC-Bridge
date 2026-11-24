@@ -260,16 +260,23 @@ func doctor(ctx context.Context, p platform.Paths) error {
 		if st.State != "READY" {
 			authErr = fmt.Errorf("state %s", st.State)
 		}
-		check("authentication", authErr)
+		if st.ErrorCode != "" {
+			authErr = fmt.Errorf("%s (%s)", st.State, st.ErrorCode)
+		}
+		check("bridge session", authErr)
 		site, c := context.WithTimeout(ctx, 15*time.Second)
-		e = ipc.Call(site, p, ipc.Request{Op: "check-site"}, nil)
+		var siteStatus int
+		e = ipc.Call(site, p, ipc.Request{Op: "check-site"}, &siteStatus)
 		c()
+		if e == nil && (siteStatus < 200 || siteStatus >= 300) {
+			e = fmt.Errorf("HTTP %d", siteStatus)
+		}
 		check("SEU website", e)
 		if st.State == "READY" {
 			ws, c := context.WithTimeout(ctx, 45*time.Second)
 			e = ipc.Call(ws, p, ipc.Request{Op: "check-webshell"}, nil)
 			c()
-			check("WebSocket handshake", e)
+			check("browser WebSSH terminal", e)
 		}
 	}
 	if failed {

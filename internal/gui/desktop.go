@@ -35,6 +35,9 @@ type App struct {
 }
 
 func (a *App) startup(ctx context.Context) { a.ctx = ctx; a.once.Do(func() { close(a.ready) }) }
+func (a *App) OpenWebTerminal() {
+	runtime.BrowserOpenURL(a.ctx, "https://sc.seu.edu.cn/webssh-connect")
+}
 func (a *App) Status() (agent.Status, error) {
 	ctx, c := context.WithTimeout(a.ctx, 3*time.Second)
 	defer c()

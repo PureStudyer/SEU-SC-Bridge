@@ -1,4 +1,4 @@
-param([ValidateSet('amd64','arm64')][string]$Arch='amd64',[string]$Version='1.0.3',[switch]$CLI)
+param([ValidateSet('amd64','arm64')][string]$Arch='amd64',[string]$Version='1.1.0',[switch]$CLI)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 Push-Location $root

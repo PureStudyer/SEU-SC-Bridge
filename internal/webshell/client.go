@@ -76,8 +76,13 @@ func (c *Client) Connect(ctx context.Context, o ConnectOptions) (Session, error)
 	// Never return the dial error: it can contain the credential-bearing URL.
 	conn, resp, err := websocket.Dial(dialCtx, target, &websocket.DialOptions{HTTPClient: c.HTTPClient, HTTPHeader: h})
 	if err != nil {
-		if resp != nil && (resp.StatusCode == 401 || resp.StatusCode == 403) {
-			return nil, ErrUnauthorized
+		if resp != nil {
+			switch resp.StatusCode {
+			case http.StatusUnauthorized:
+				return nil, ErrUnauthorized
+			case http.StatusForbidden:
+				return nil, apperr.New("WEBSHELL_FORBIDDEN", "平台拒绝了 Bridge 的 WebShell 请求（HTTP 403）。可使用官方网页终端：https://sc.seu.edu.cn/webssh-connect")
+			}
 		}
 		return nil, apperr.New("WEBSOCKET_FAILED", "无法连接 SEU WebShell，请检查网络和登录节点")
 	}
@@ -87,7 +92,7 @@ func (c *Client) Connect(ctx context.Context, o ConnectOptions) (Session, error)
 
 type socket struct {
 	inputMode       string
-	incomplete      []byte
+	encoder         InputEncoder
 	ctx             context.Context
 	conn            *websocket.Conn
 	pending         *bytes.Reader
@@ -122,30 +127,13 @@ func (s *socket) Write(p []byte) (int, error) {
 	data := p
 	kind := websocket.MessageBinary
 	if s.inputMode == "json" {
-		data = append(s.incomplete, p...)
-		s.incomplete = nil
-		end := 0
-		for end < len(data) {
-			if !utf8.FullRune(data[end:]) {
-				s.incomplete = append([]byte(nil), data[end:]...)
-				break
-			}
-			r, n := utf8.DecodeRune(data[end:])
-			if r == utf8.RuneError && n == 1 {
-				return 0, errors.New("invalid UTF-8 input for JSON WebShell; select binary mode for raw encodings")
-			}
-			end += n
-		}
-		if end == 0 {
-			return len(p), nil
-		}
 		var err error
-		data, err = json.Marshal(struct {
-			Type string `json:"type"`
-			Data string `json:"data"`
-		}{"input", string(data[:end])})
+		data, err = s.encoder.Encode(p)
 		if err != nil {
 			return 0, err
+		}
+		if len(data) == 0 {
+			return len(p), nil
 		}
 		kind = websocket.MessageText
 	}
@@ -176,3 +164,30 @@ func (s *socket) Resize(ctx context.Context, rows, cols int) error {
 	return s.conn.Write(ctx, websocket.MessageText, b)
 }
 func (s *socket) Close() error { return s.conn.CloseNow() }
+
+// InputEncoder retains incomplete UTF-8 across SSH writes in JSON mode.
+type InputEncoder struct{ incomplete []byte }
+
+func (enc *InputEncoder) Encode(p []byte) ([]byte, error) {
+	data := append(enc.incomplete, p...)
+	enc.incomplete = nil
+	end := 0
+	for end < len(data) {
+		if !utf8.FullRune(data[end:]) {
+			enc.incomplete = append([]byte(nil), data[end:]...)
+			break
+		}
+		r, n := utf8.DecodeRune(data[end:])
+		if r == utf8.RuneError && n == 1 {
+			return nil, errors.New("invalid UTF-8 input for JSON WebShell; select binary mode for raw encodings")
+		}
+		end += n
+	}
+	if end == 0 {
+		return nil, nil
+	}
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
+	}{"input", string(data[:end])})
+}

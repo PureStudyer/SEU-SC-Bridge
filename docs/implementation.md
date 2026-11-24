@@ -1,6 +1,8 @@
 # Implementation and validation status
 
-Validated on Windows amd64, 2026-09-21.
+The browser transport was tested on Windows amd64 on 2026-11-24. The agent opens the official WebSSH page in a managed Chromium tab for each SSH channel. Live checks covered simultaneous commands, exit status 7, UTF-8, Ctrl+C and PTY resizing.
+
+## Earlier validation on Windows amd64, 2026-09-21
 
 Implemented: Go WebShell transport (binary + current JSON input), SSH public-key server, interactive/exec bridge, resize/signals, concurrent sessions, configurable nodes, managed SSH config and pinned host key, browser login and persistent profile restore, coalesced token refresh, OS credential abstraction, private IPC, background process, autostart, Wails desktop/tray, logs, CLI/doctor, Windows installers, macOS bundle scripts, CI.
 

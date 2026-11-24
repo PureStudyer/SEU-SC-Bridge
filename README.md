@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.3">下载安装</a> ·
+  <a href="https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.1.0">下载安装</a> ·
   <a href="#三步开始">快速开始</a> ·
   <a href="docs/guide.md">使用手册</a> ·
   <a href="https://github.com/PureStudyer/SEU-SC-Bridge/issues">反馈问题</a>
@@ -31,16 +31,16 @@ SEU SC Bridge 是一个非官方的 SEU 超算桌面客户端，将平台 WebShe
 
 ### 1. 下载并安装
 
-从 **[GitHub Releases](https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.0.3)** 下载：
+从 **[GitHub Releases](https://github.com/PureStudyer/SEU-SC-Bridge/releases/tag/v1.1.0)** 下载：
 
 | 系统 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows 10/11 · Intel / AMD | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-Setup-x64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-windows-x64.exe) | x64 正式构建，未签名 |
-| Windows 11 · ARM64 | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-Setup-arm64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-windows-arm64.exe) | ARM64 正式构建，未签名 |
-| macOS · Intel | [SEU-SC-Bridge-amd64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-amd64.dmg) | Intel 正式构建，未签名 |
-| macOS · Apple Silicon | [SEU-SC-Bridge-arm64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SEU-SC-Bridge-arm64.dmg) | Apple Silicon 正式构建，未签名 |
+| Windows 10/11 · Intel / AMD | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-Setup-x64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-windows-x64.exe) | x64 正式构建，未签名 |
+| Windows 11 · ARM64 | [安装包](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-Setup-arm64.exe) · [便携版](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-windows-arm64.exe) | ARM64 正式构建，未签名 |
+| macOS · Intel | [SEU-SC-Bridge-amd64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-amd64.dmg) | Intel 正式构建，未签名 |
+| macOS · Apple Silicon | [SEU-SC-Bridge-arm64.dmg](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SEU-SC-Bridge-arm64.dmg) | Apple Silicon 正式构建，未签名 |
 
-> **v1.0.3 为正式发布版本。** 当前 Windows 和 macOS 产物未代码签名；首次启动时可能出现 Windows SmartScreen 或 macOS Gatekeeper 提示。请从 Release 下载，并对照 [SHA256SUMS.txt](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.0.3/SHA256SUMS.txt) 校验文件。
+> **v1.1.0 为正式发布版本。** 当前 Windows 和 macOS 产物未代码签名；首次启动时可能出现 Windows SmartScreen 或 macOS Gatekeeper 提示。请从 Release 下载，并对照 [SHA256SUMS.txt](https://github.com/PureStudyer/SEU-SC-Bridge/releases/download/v1.1.0/SHA256SUMS.txt) 校验文件。
 
 Windows 使用当前用户安装，无需管理员权限。需要 **Chrome / Edge / Chromium**；桌面界面需要 **Microsoft Edge WebView2 Runtime**。
 
@@ -95,7 +95,7 @@ SFTP 中可以使用 put、get、ls、mkdir、rename、rm、rmdir。支持二进
 | 自动登录 | Chromium/CDP 执行网站登录，自动获取 Bearer |
 | 持久会话 | 重启恢复浏览器会话，鉴权失败后刷新并重试一次 |
 | 交互终端 | ANSI 输出、UTF-8 中文、控制键、PTY 窗口缩放 |
-| 多会话 | 每个 SSH 会话使用独立 WebSocket / PTY |
+| 多会话 | 每个 SSH 会话在独立浏览器标签页中使用自己的 WebSSH 终端 |
 | 直接执行命令 | 隔离横幅与回显，返回远端退出码 |
 | 文件传输 | 标准 SFTP / 现代 scp，复用自动登录与网页文件接口 |
 | 原生后台 | 单实例代理、托盘 / 菜单栏、用户级自启动 |
@@ -104,12 +104,12 @@ SFTP 中可以使用 put、get、ls、mkdir、rename、rm、rmdir。支持二进
 ## 工作方式
 
 ~~~text
-你的终端                  本机后台代理                 SEU 超算
-ssh seusc ──SSH 公钥──▶ 127.0.0.1:24822 ──WSS──▶ WebShell / PTY
+你的终端                  本机后台代理                Bridge 管理的浏览器
+ssh seusc ──SSH 公钥──▶ 127.0.0.1:24822 ──▶ 官方 WebSSH 页面 ──WSS──▶ 登录节点 PTY
 scp / sftp ──SFTP──▶ 同一 SSH 入口 ──HTTPS──▶ Finder 文件接口
-                             ▲
-                        独立浏览器登录
 ~~~
+
+后台代理保持登录浏览器运行。打开 `ssh seusc` 或执行 `ssh seusc hostname` 时，代理会打开官方终端页面，接入页面为所选节点建立的连接。SSH 会话结束后，代理关闭对应标签页。
 
 SSH 只监听回环地址，只接受 SEUSC 生成的客户端公钥。TLS 校验保持开启，主机密钥通过专用 known_hosts 固定。日志和应用配置不保存密码、Bearer 或 Cookie；浏览器 profile 自身会持久化站点登录数据。
 
