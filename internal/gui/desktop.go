@@ -95,6 +95,23 @@ func (a *App) InstallUpdate() error {
 	return update.DownloadAndLaunch(ctx, agent.Version)
 }
 func (a *App) Start() error { return agent.Start(a.ctx, a.paths) }
+
+// RevealSavedPassword is used only by the desktop form's explicit reveal button.
+func (a *App) RevealSavedPassword(username string) (string, error) {
+	cfg, err := config.Load(a.paths.ConfigDir)
+	if err != nil {
+		return "", err
+	}
+	if username == "" || username != cfg.Username || !cfg.Remember {
+		return "", fmt.Errorf("此账号没有已保存的密码")
+	}
+	password, err := (credential.System{}).Get(username)
+	if err == nil && password == "" {
+		return "", fmt.Errorf("此账号没有已保存的密码")
+	}
+	return password, err
+}
+
 func (a *App) Login(username, password string, remember, autostart bool) (agent.Status, error) {
 	var st agent.Status
 	if e := a.Start(); e != nil {

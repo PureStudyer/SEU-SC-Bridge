@@ -2,3 +2,7 @@
 
 .brand{font-size:17px;letter-spacing:.1px}.brand-symbol{background:transparent;border-radius:10px;width:42px;height:42px}.brand small{font-size:7px;letter-spacing:.8px}
 .update-panel{margin-top:20px}.update-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}.release-link{color:#8deac3;padding:10px 4px;text-decoration:none}.release-link:hover{text-decoration:underline}#update-notes{max-height:240px;min-height:0;margin:0}
+.password-field{display:flex;align-items:stretch;gap:8px;margin-top:9px}
+.password-field input:not([type=checkbox]){margin:0;min-width:0;flex:1}
+.password-field button{white-space:nowrap}
+#password::-ms-reveal{display:none}
